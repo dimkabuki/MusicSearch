@@ -1,26 +1,35 @@
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs/operators';
+import { Observable } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { debounceTime, distinctUntilChanged, switchMap, map } from 'rxjs/operators';
 
-// for test purposes
-const MOCKED_RESULT = [
-  ['A Moon Shaped Pool (R)', 'In Rainbows (R)', 'Kid A (R)', 'OK Computer (R)', 'Pablo Honey (R)'],
-  ['Surfer Rosa (P)', 'Doolittle (P)', 'Bossanova (P)', 'Trompe le Monde (P)', 'Indie Cindy (P)'],
-  ['Showbiz (M)', 'Origin of Symmetry (M)', 'Absolution (M)', 'Black Holes and Revelations (M)', 'The Resistance (M)'],
-  ['Loud Like Love (Pl)', 'Placebo (Pl)', 'Sleeping with Ghosts (Pl)', 'Meds (Pl)', 'Battle for the Sun (Pl)'],
-  ['One Hot Minute (Rh)', 'Californication (Rh)', 'By the Way (Rh)', 'Stadium Arcadium (Rh)', 'I’m with You (Rh)'],
-];
+type SearchEntry = {
+  collectionName: string;
+};
 
-function getRandomResult<T>(list: T[] = []): T {
-  return list[Math.floor(Math.random() * list.length)];
-}
-// for test purposes
+type SearchResults = {
+  resultCount: number;
+  results: SearchEntry[];
+};
+
+const API_URL = 'https://itunes.apple.com/search';
 
 export const DEFAULT_RESULT = ['A', 'B', 'C', 'D', 'E'];
 
+function getSortedData(items: SearchResults['results']): string[] {
+  return items.length
+    ? items
+        .map(({ collectionName }) => collectionName)
+        .sort()
+        .slice(0, 5)
+    : [...DEFAULT_RESULT];
+}
+
 @Injectable()
 export class SearchService {
-  search(query: Observable<string>, debounceMs = 400) {
+  constructor(private http: HttpClient) {}
+
+  search(query: Observable<string>, debounceMs = 600) {
     return query.pipe(
       debounceTime(debounceMs),
       distinctUntilChanged(),
@@ -29,8 +38,9 @@ export class SearchService {
   }
 
   rawSearch(term: string) {
-    console.log('Searching for: ', term);
-    // Mocking search result from Apple Music API
-    return of(getRandomResult(MOCKED_RESULT).sort());
+    const url = `${API_URL}?entity=album&term=${term}`;
+    return this.http
+      .jsonp<SearchResults>(url, 'callback')
+      .pipe(map((response: SearchResults) => getSortedData(response?.results || [])));
   }
 }
